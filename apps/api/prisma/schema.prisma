@@ -1,0 +1,393 @@
+// UdyogaSakha — Prisma Schema
+// Run: npx prisma migrate dev --name init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  PARTICIPANT
+  GOVERNANCE_MEMBER
+  MODERATOR
+  ADMIN
+}
+
+enum AccountStatus {
+  ACTIVE
+  PENDING_VERIFICATION
+  RESTRICTED
+  SUSPENDED
+}
+
+enum ParticipantType {
+  INDIVIDUAL
+  ORGANIZATION
+  AGENCY
+}
+
+enum TrustLevel {
+  L0_REGISTERED
+  L1_DOCUMENT_VERIFIED
+  L2_FOUNDATION_SCREENED
+  L3_DOMAIN_EXPERT_CERTIFIED
+  L4_COMMUNITY_ENDORSED
+}
+
+enum TrustBadgeStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+  UNDER_REVIEW
+}
+
+enum DocumentType {
+  AADHAR
+  PAN
+  GST_CERT
+  COMPANY_REG
+  PROFESSIONAL_CERT
+  OTHER
+}
+
+enum ModuleType {
+  EMPLOYMENT_EXCHANGE
+  AGENCY_STAFF_AUG
+  PROJECT_TENDER
+  CONSULTANCY_ADVISORY
+  SERVICE_ENGAGEMENT
+  VENDOR_MARKETPLACE
+  TRAINING_SKILL_DEV
+  STARTUP_INNOVATION
+  VOLUNTEER_SOCIAL
+}
+
+enum OpportunityStatus {
+  DRAFT
+  MODERATION
+  PUBLISHED
+  ENGAGED
+  CLOSED
+  REJECTED
+}
+
+enum ApplicationStatus {
+  PENDING
+  SHORTLISTED
+  ACCEPTED
+  DECLINED
+  WITHDRAWN
+}
+
+enum EngagementStatus {
+  INITIATED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  DISPUTED
+}
+
+enum CouncilType {
+  EGC
+  DEP
+  MODERATION
+}
+
+enum EnforcementActionType {
+  WARNING
+  BADGE_REVOKE
+  RESTRICT
+  SUSPEND
+}
+
+// ─── Core Identity ────────────────────────────────────────────────────────────
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  phone        String?       @unique
+  passwordHash String        @map("password_hash")
+  roles        UserRole[]    @default([PARTICIPANT])
+  status       AccountStatus @default(PENDING_VERIFICATION)
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  profile            UserProfile?
+  documents          UserDocument[]
+  trustRecord        TrustRecord?
+  badges             TrustBadge[]
+  opportunitiesAsReq Opportunity[]      @relation("Requester")
+  applications       Application[]
+  engagementsAsReq   Engagement[]       @relation("EngagementRequester")
+  engagementsAsProv  Engagement[]       @relation("EngagementProvider")
+  feedbackGiven      EngagementFeedback[] @relation("FeedbackGiver")
+  feedbackReceived   EngagementFeedback[] @relation("FeedbackReceiver")
+  governanceMemberships GovernanceMember[]
+  enforcementActions EnforcementAction[] @relation("EnforcementTarget")
+  enforcementsTaken  EnforcementAction[] @relation("EnforcementActor")
+  reportsSubmitted   Report[]           @relation("Reporter")
+  auditActions       AuditLog[]
+
+  @@map("users")
+}
+
+model UserProfile {
+  userId              String          @id @map("user_id")
+  fullName            String          @map("full_name")
+  bio                 String?
+  location            String?
+  avatarUrl           String?         @map("avatar_url")
+  participantType     ParticipantType @map("participant_type")
+  organizationName    String?         @map("organization_name")
+  organizationRegNo   String?         @map("organization_reg_no")
+  showContactAfterMatch Boolean       @default(false) @map("show_contact_after_match")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model UserDocument {
+  id          String       @id @default(uuid())
+  userId      String       @map("user_id")
+  docType     DocumentType @map("doc_type")
+  storageKey  String       @map("storage_key") // S3/R2 object key — never a public URL
+  uploadedAt  DateTime     @default(now()) @map("uploaded_at")
+  verifiedAt  DateTime?    @map("verified_at")
+  verifierId  String?      @map("verifier_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_documents")
+}
+
+// ─── Trust Framework ──────────────────────────────────────────────────────────
+
+model TrustRecord {
+  userId                String     @id @map("user_id")
+  currentLevel          TrustLevel @default(L0_REGISTERED) @map("current_level")
+  reputationScore       Float      @default(0) @map("reputation_score")
+  completedEngagements  Int        @default(0) @map("completed_engagements")
+  updatedAt             DateTime   @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("trust_records")
+}
+
+model TrustBadge {
+  id          String           @id @default(uuid())
+  userId      String           @map("user_id")
+  badgeType   String           @map("badge_type")
+  grantedAt   DateTime         @default(now()) @map("granted_at")
+  grantedBy   String           @map("granted_by")
+  validUntil  DateTime?        @map("valid_until")
+  status      TrustBadgeStatus @default(ACTIVE)
+  revokedAt   DateTime?        @map("revoked_at")
+  revokeReason String?         @map("revoke_reason")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("trust_badges")
+}
+
+model VerificationRequest {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  documentIds String[] @map("document_ids")
+  status      String   @default("pending") // pending | approved | rejected
+  requestedAt DateTime @default(now()) @map("requested_at")
+  reviewedAt  DateTime? @map("reviewed_at")
+  reviewerId  String?  @map("reviewer_id")
+  reviewNote  String?  @map("review_note")
+
+  @@map("verification_requests")
+}
+
+// ─── Opportunities ────────────────────────────────────────────────────────────
+
+model Opportunity {
+  id                   String            @id @default(uuid())
+  requesterId          String            @map("requester_id")
+  moduleType           ModuleType        @map("module_type")
+  title                String
+  description          String
+  trustLevelRequired   TrustLevel        @default(L1_DOCUMENT_VERIFIED) @map("trust_level_required")
+  status               OpportunityStatus @default(MODERATION)
+  isPublic             Boolean           @default(true) @map("is_public")
+  details              Json              // Module-specific fields
+  publishedAt          DateTime?         @map("published_at")
+  closesAt             DateTime?         @map("closes_at")
+  rejectionReason      String?           @map("rejection_reason")
+  closureNote          String?           @map("closure_note")
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+
+  requester    User          @relation("Requester", fields: [requesterId], references: [id])
+  applications Application[]
+  engagements  Engagement[]
+
+  @@index([status, moduleType])
+  @@index([requesterId])
+  @@map("opportunities")
+}
+
+// ─── Engagements ─────────────────────────────────────────────────────────────
+
+model Application {
+  id            String            @id @default(uuid())
+  opportunityId String            @map("opportunity_id")
+  providerId    String            @map("provider_id")
+  coverMessage  String?           @map("cover_message")
+  status        ApplicationStatus @default(PENDING)
+  appliedAt     DateTime          @default(now()) @map("applied_at")
+  reviewedAt    DateTime?         @map("reviewed_at")
+  reviewNote    String?           @map("review_note")
+
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id])
+  provider    User        @relation(fields: [providerId], references: [id])
+
+  @@unique([opportunityId, providerId])
+  @@map("applications")
+}
+
+model Engagement {
+  id                       String          @id @default(uuid())
+  opportunityId            String          @map("opportunity_id")
+  requesterId              String          @map("requester_id")
+  providerId               String          @map("provider_id")
+  status                   EngagementStatus @default(INITIATED)
+  startedAt                DateTime        @default(now()) @map("started_at")
+  closedAt                 DateTime?       @map("closed_at")
+  closureNote              String?         @map("closure_note")
+  completionAcknowledgedAt DateTime?       @map("completion_acknowledged_at")
+
+  opportunity Opportunity          @relation(fields: [opportunityId], references: [id])
+  requester   User                 @relation("EngagementRequester", fields: [requesterId], references: [id])
+  provider    User                 @relation("EngagementProvider", fields: [providerId], references: [id])
+  feedback    EngagementFeedback[]
+
+  @@map("engagements")
+}
+
+model EngagementFeedback {
+  id           String   @id @default(uuid())
+  engagementId String   @map("engagement_id")
+  byUserId     String   @map("by_user_id")
+  forUserId    String   @map("for_user_id")
+  rating       Int      // 1-5
+  comment      String?
+  submittedAt  DateTime @default(now()) @map("submitted_at")
+
+  engagement Engagement @relation(fields: [engagementId], references: [id])
+  giver      User       @relation("FeedbackGiver", fields: [byUserId], references: [id])
+  receiver   User       @relation("FeedbackReceiver", fields: [forUserId], references: [id])
+
+  @@unique([engagementId, byUserId])
+  @@map("engagement_feedback")
+}
+
+// ─── Governance ───────────────────────────────────────────────────────────────
+
+model GovernanceMember {
+  id            String      @id @default(uuid())
+  userId        String      @map("user_id")
+  councilType   CouncilType @map("council_type")
+  domain        String
+  active        Boolean     @default(true)
+  addedAt       DateTime    @default(now()) @map("added_at")
+  addedBy       String      @map("added_by")
+  deactivatedAt DateTime?   @map("deactivated_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("governance_members")
+}
+
+model ConflictDeclaration {
+  id          String   @id @default(uuid())
+  memberId    String   @map("member_id")
+  entityId    String   @map("entity_id")
+  entityType  String   @map("entity_type")
+  notes       String
+  declaredAt  DateTime @default(now()) @map("declared_at")
+
+  @@map("conflict_declarations")
+}
+
+model ScreeningSession {
+  id             String    @id @default(uuid())
+  candidateId    String    @map("candidate_id")
+  panelMemberId  String    @map("panel_member_id")
+  domain         String
+  scheduledAt    DateTime  @map("scheduled_at")
+  status         String    @default("scheduled") // scheduled | completed | cancelled
+  outcome        String?   // approved | rejected | deferred
+  notes          String?
+  conductedAt    DateTime? @map("conducted_at")
+
+  @@map("screening_sessions")
+}
+
+// ─── Moderation ───────────────────────────────────────────────────────────────
+
+model Report {
+  id          String   @id @default(uuid())
+  reporterId  String   @map("reporter_id")
+  subjectType String   @map("subject_type") // user | opportunity | engagement
+  subjectId   String   @map("subject_id")
+  reason      String
+  detail      String?
+  status      String   @default("pending") // pending | resolved | dismissed
+  resolution  String?
+  resolvedBy  String?  @map("resolved_by")
+  resolvedAt  DateTime? @map("resolved_at")
+  submittedAt DateTime @default(now()) @map("submitted_at")
+
+  reporter User @relation("Reporter", fields: [reporterId], references: [id])
+
+  @@map("reports")
+}
+
+model EnforcementAction {
+  id           String                @id @default(uuid())
+  targetUserId String                @map("target_user_id")
+  action       EnforcementActionType
+  reason       String
+  actorId      String                @map("actor_id")
+  expiresAt    DateTime?             @map("expires_at")
+  createdAt    DateTime              @default(now()) @map("created_at")
+
+  target User @relation("EnforcementTarget", fields: [targetUserId], references: [id])
+  actor  User @relation("EnforcementActor", fields: [actorId], references: [id])
+
+  @@map("enforcement_actions")
+}
+
+// ─── Audit Log ────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  action     String
+  actorId    String   @map("actor_id")
+  oldState   Json?    @map("old_state")
+  newState   Json?    @map("new_state")
+  ip         String?
+  ts         DateTime @default(now())
+
+  actor User @relation(fields: [actorId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([ts])
+  @@map("audit_log")
+}

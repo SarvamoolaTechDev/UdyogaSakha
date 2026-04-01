@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "ES2021",
+    "lib": ["ES2021"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "baseUrl": "./",
+    "paths": {
+      "@udyogasakha/types": ["../../packages/types/src"],
+      "@udyogasakha/validators": ["../../packages/validators/src"]
+    },
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "incremental": true
+  },
+  "include": ["src/**/*", "prisma/seed.ts"],
+  "exclude": ["node_modules", "dist"]
+}

@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "target": "ES2021",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "paths": {
+      "@udyogasakha/types": ["../types/src"],
+      "@udyogasakha/validators": ["../validators/src"]
+    }
+  },
+  "include": ["src/**/*"]
+}
