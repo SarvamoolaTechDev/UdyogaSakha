@@ -1,214 +1,120 @@
-import {
-  Injectable,
-  NotFoundException,
-  ForbiddenException,
-  ConflictException,
-} from '@nestjs/common';
-import {
-  ApplicationStatus,
-  EngagementStatus,
-  AuditEntityType,
-  OpportunityStatus,
-} from '@udyogasakha/types';
+import { Injectable, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
+import { ApplicationStatus, EngagementStatus, AuditEntityType, OpportunityStatus } from '@udyogasakha/types';
+import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { OpportunitiesService } from '../opportunities/opportunities.service';
 
 @Injectable()
 export class EngagementsService {
-  // TODO: Replace with PrismaService
-  private applications: any[] = [];
-  private engagements: any[] = [];
-  private feedback: any[] = [];
-
   constructor(
+    private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
-    private readonly opportunitiesService: OpportunitiesService,
   ) {}
 
-  // ── Applications ─────────────────────────────────────────────────────────
+  // ── Applications ──────────────────────────────────────────────────────────
 
   async apply(opportunityId: string, providerId: string, coverMessage?: string) {
-    const opp = await this.opportunitiesService.findById(opportunityId);
+    const opp = await this.prisma.opportunity.findUnique({ where: { id: opportunityId } });
+    if (!opp) throw new NotFoundException('Opportunity not found');
+    if (opp.status !== OpportunityStatus.PUBLISHED) throw new ForbiddenException('Opportunity is not open for applications');
+    if (opp.requesterId === providerId) throw new ForbiddenException('You cannot apply to your own opportunity');
 
-    if (opp.status !== OpportunityStatus.PUBLISHED) {
-      throw new ForbiddenException('Opportunity is not open for applications');
-    }
-
-    if (opp.requesterId === providerId) {
-      throw new ForbiddenException('You cannot apply to your own opportunity');
-    }
-
-    const existing = this.applications.find(
-      (a) => a.opportunityId === opportunityId && a.providerId === providerId,
-    );
+    const existing = await this.prisma.application.findUnique({ where: { opportunityId_providerId: { opportunityId, providerId } } });
     if (existing) throw new ConflictException('You have already applied to this opportunity');
 
-    const application = {
-      id: crypto.randomUUID(),
-      opportunityId,
-      providerId,
-      coverMessage,
-      status: ApplicationStatus.PENDING,
-      appliedAt: new Date(),
-    };
-
-    this.applications.push(application);
-
-    await this.auditService.log({
-      entityType: AuditEntityType.APPLICATION,
-      entityId: application.id,
-      action: 'submitted',
-      actorId: providerId,
-      newState: { opportunityId, status: ApplicationStatus.PENDING },
+    const application = await this.prisma.application.create({
+      data: { opportunityId, providerId, coverMessage, status: ApplicationStatus.PENDING },
     });
 
+    await this.auditService.log({ entityType: AuditEntityType.APPLICATION, entityId: application.id, action: 'submitted', actorId: providerId, newState: { opportunityId, status: ApplicationStatus.PENDING } });
     return application;
   }
 
   async getApplicationsForOpportunity(opportunityId: string, requesterId: string) {
-    const opp = await this.opportunitiesService.findById(opportunityId);
-    if (opp.requesterId !== requesterId) {
-      throw new ForbiddenException('Only the requester can view applications');
-    }
-    return this.applications.filter((a) => a.opportunityId === opportunityId);
+    const opp = await this.prisma.opportunity.findUnique({ where: { id: opportunityId } });
+    if (!opp) throw new NotFoundException('Opportunity not found');
+    if (opp.requesterId !== requesterId) throw new ForbiddenException('Only the requester can view applications');
+    return this.prisma.application.findMany({ where: { opportunityId }, include: { provider: { include: { profile: true, trustRecord: true } } } });
   }
 
   async getMyApplications(providerId: string) {
-    return this.applications.filter((a) => a.providerId === providerId);
+    return this.prisma.application.findMany({ where: { providerId }, include: { opportunity: true }, orderBy: { appliedAt: 'desc' } });
   }
 
-  async updateApplicationStatus(
-    applicationId: string,
-    requesterId: string,
-    status: ApplicationStatus,
-    reviewNote?: string,
-  ) {
-    const app = this.applications.find((a) => a.id === applicationId);
+  async updateApplicationStatus(applicationId: string, requesterId: string, status: ApplicationStatus, reviewNote?: string) {
+    const app = await this.prisma.application.findUnique({ where: { id: applicationId }, include: { opportunity: true } });
     if (!app) throw new NotFoundException('Application not found');
+    if (app.opportunity.requesterId !== requesterId) throw new ForbiddenException('Only the requester can update application status');
 
-    const opp = await this.opportunitiesService.findById(app.opportunityId);
-    if (opp.requesterId !== requesterId) {
-      throw new ForbiddenException('Only the requester can update application status');
-    }
-
-    const old = app.status;
-    app.status = status;
-    app.reviewNote = reviewNote;
-    app.reviewedAt = new Date();
-
-    await this.auditService.log({
-      entityType: AuditEntityType.APPLICATION,
-      entityId: applicationId,
-      action: 'status_updated',
-      actorId: requesterId,
-      oldState: { status: old },
-      newState: { status, reviewNote },
+    const updated = await this.prisma.application.update({
+      where: { id: applicationId },
+      data: { status, reviewNote, reviewedAt: new Date() },
     });
 
-    // Auto-create an engagement when accepted
+    await this.auditService.log({ entityType: AuditEntityType.APPLICATION, entityId: applicationId, action: 'status_updated', actorId: requesterId, oldState: { status: app.status }, newState: { status, reviewNote } });
+
     if (status === ApplicationStatus.ACCEPTED) {
       await this.createEngagement(app.opportunityId, requesterId, app.providerId);
     }
 
-    return app;
+    return updated;
   }
 
-  // ── Engagements ──────────────────────────────────────────────────────────
+  // ── Engagements ───────────────────────────────────────────────────────────
 
-  private async createEngagement(
-    opportunityId: string,
-    requesterId: string,
-    providerId: string,
-  ) {
-    const engagement = {
-      id: crypto.randomUUID(),
-      opportunityId,
-      requesterId,
-      providerId,
-      status: EngagementStatus.INITIATED,
-      startedAt: new Date(),
-    };
-
-    this.engagements.push(engagement);
-
-    await this.auditService.log({
-      entityType: AuditEntityType.ENGAGEMENT,
-      entityId: engagement.id,
-      action: 'created',
-      actorId: requesterId,
-      newState: { opportunityId, providerId, status: EngagementStatus.INITIATED },
+  private async createEngagement(opportunityId: string, requesterId: string, providerId: string) {
+    const engagement = await this.prisma.engagement.create({
+      data: { opportunityId, requesterId, providerId, status: EngagementStatus.INITIATED },
     });
-
+    await this.auditService.log({ entityType: AuditEntityType.ENGAGEMENT, entityId: engagement.id, action: 'created', actorId: requesterId, newState: { opportunityId, providerId, status: EngagementStatus.INITIATED } });
     return engagement;
   }
 
   async getMyEngagements(userId: string) {
-    return this.engagements.filter(
-      (e) => e.requesterId === userId || e.providerId === userId,
-    );
+    return this.prisma.engagement.findMany({
+      where: { OR: [{ requesterId: userId }, { providerId: userId }] },
+      include: { opportunity: true },
+      orderBy: { startedAt: 'desc' },
+    });
   }
 
-  async closeEngagement(
-    engagementId: string,
-    userId: string,
-    status: EngagementStatus.COMPLETED | EngagementStatus.CANCELLED,
-    note?: string,
-  ) {
-    const eng = this.engagements.find((e) => e.id === engagementId);
+  async closeEngagement(engagementId: string, userId: string, status: EngagementStatus.COMPLETED | EngagementStatus.CANCELLED, note?: string) {
+    const eng = await this.prisma.engagement.findUnique({ where: { id: engagementId } });
     if (!eng) throw new NotFoundException('Engagement not found');
+    if (eng.requesterId !== userId && eng.providerId !== userId) throw new ForbiddenException('Not a party to this engagement');
 
-    if (eng.requesterId !== userId && eng.providerId !== userId) {
-      throw new ForbiddenException('Not a party to this engagement');
-    }
-
-    const old = eng.status;
-    eng.status = status;
-    eng.closedAt = new Date();
-    eng.closureNote = note;
-
-    await this.auditService.log({
-      entityType: AuditEntityType.ENGAGEMENT,
-      entityId: engagementId,
-      action: status === EngagementStatus.COMPLETED ? 'completed' : 'cancelled',
-      actorId: userId,
-      oldState: { status: old },
-      newState: { status, note },
+    const updated = await this.prisma.engagement.update({
+      where: { id: engagementId },
+      data: { status, closedAt: new Date(), closureNote: note },
     });
 
-    return eng;
+    await this.auditService.log({ entityType: AuditEntityType.ENGAGEMENT, entityId: engagementId, action: status === EngagementStatus.COMPLETED ? 'completed' : 'cancelled', actorId: userId, oldState: { status: eng.status }, newState: { status, note } });
+
+    if (status === EngagementStatus.COMPLETED) {
+      await this.prisma.trustRecord.updateMany({ where: { userId: { in: [eng.requesterId, eng.providerId] } }, data: { completedEngagements: { increment: 1 } } });
+    }
+
+    return updated;
   }
 
-  // ── Feedback ─────────────────────────────────────────────────────────────
+  // ── Feedback ──────────────────────────────────────────────────────────────
 
-  async submitFeedback(
-    engagementId: string,
-    byUserId: string,
-    rating: number,
-    comment?: string,
-  ) {
-    const eng = this.engagements.find((e) => e.id === engagementId);
+  async submitFeedback(engagementId: string, byUserId: string, rating: number, comment?: string) {
+    const eng = await this.prisma.engagement.findUnique({ where: { id: engagementId } });
     if (!eng) throw new NotFoundException('Engagement not found');
-
-    if (eng.status !== EngagementStatus.COMPLETED) {
-      throw new ForbiddenException('Feedback can only be submitted after completion');
-    }
-
-    if (eng.requesterId !== byUserId && eng.providerId !== byUserId) {
-      throw new ForbiddenException('Not a party to this engagement');
-    }
+    if (eng.status !== EngagementStatus.COMPLETED) throw new ForbiddenException('Feedback can only be submitted after completion');
+    if (eng.requesterId !== byUserId && eng.providerId !== byUserId) throw new ForbiddenException('Not a party to this engagement');
 
     const forUserId = eng.requesterId === byUserId ? eng.providerId : eng.requesterId;
 
-    const fb = {
-      id: crypto.randomUUID(),
-      engagementId,
-      byUserId,
-      forUserId,
-      rating,
-      comment,
-      submittedAt: new Date(),
-    };
-    this.feedback.push(fb);
-    return fb;
+    const feedback = await this.prisma.engagementFeedback.create({
+      data: { engagementId, byUserId, forUserId, rating, comment },
+    });
+
+    // Update recipient's average reputation score
+    const allFeedback = await this.prisma.engagementFeedback.findMany({ where: { forUserId } });
+    const avg = allFeedback.reduce((sum, f) => sum + f.rating, 0) / allFeedback.length;
+    await this.prisma.trustRecord.update({ where: { userId: forUserId }, data: { reputationScore: Math.round(avg * 10) / 10 } });
+
+    return feedback;
   }
 }

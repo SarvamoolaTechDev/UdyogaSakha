@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AuditEntityType } from '@udyogasakha/types';
+import { PrismaService } from '../../prisma/prisma.service';
 
 export interface AuditLogEntry {
   entityType: AuditEntityType;
@@ -13,28 +14,34 @@ export interface AuditLogEntry {
 
 @Injectable()
 export class AuditService {
-  // TODO: Replace with PrismaService — audit_log table is append-only, never update/delete
-  private logs: Array<AuditLogEntry & { id: string; ts: Date }> = [];
+  constructor(private readonly prisma: PrismaService) {}
 
   async log(entry: AuditLogEntry): Promise<void> {
-    this.logs.push({
-      ...entry,
-      id: crypto.randomUUID(),
-      ts: new Date(),
+    await this.prisma.auditLog.create({
+      data: {
+        entityType: entry.entityType,
+        entityId: entry.entityId,
+        action: entry.action,
+        actorId: entry.actorId,
+        oldState: entry.oldState as any,
+        newState: entry.newState as any,
+        ip: entry.ip,
+      },
     });
-    // In production: also emit to structured logging (e.g. Winston → CloudWatch)
   }
 
-  async getLogsForEntity(entityType: AuditEntityType, entityId: string) {
-    return this.logs
-      .filter((l) => l.entityType === entityType && l.entityId === entityId)
-      .sort((a, b) => b.ts.getTime() - a.ts.getTime());
+  async getLogsForEntity(entityType: string, entityId: string) {
+    return this.prisma.auditLog.findMany({
+      where: { entityType, entityId },
+      orderBy: { ts: 'desc' },
+    });
   }
 
   async getLogsForActor(actorId: string, limit = 50) {
-    return this.logs
-      .filter((l) => l.actorId === actorId)
-      .sort((a, b) => b.ts.getTime() - a.ts.getTime())
-      .slice(0, limit);
+    return this.prisma.auditLog.findMany({
+      where: { actorId },
+      orderBy: { ts: 'desc' },
+      take: limit,
+    });
   }
 }

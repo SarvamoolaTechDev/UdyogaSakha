@@ -1,0 +1,15 @@
+import type { Metadata } from 'next';
+import './globals.css';
+
+export const metadata: Metadata = {
+  title: { default: 'UdyogaSakha Admin', template: '%s | Admin' },
+  description: 'UdyogaSakha governance and moderation portal — restricted access.',
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  );
+}

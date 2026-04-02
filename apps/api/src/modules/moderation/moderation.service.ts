@@ -1,106 +1,53 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuditEntityType, EnforcementActionType, AccountStatus } from '@udyogasakha/types';
+import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class ModerationService {
-  // TODO: Replace with PrismaService
-  private reports: any[] = [];
-  private enforcementActions: any[] = [];
-
   constructor(
+    private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
-    private readonly usersService: UsersService,
   ) {}
 
-  // ── Reports ──────────────────────────────────────────────────────────────
-
-  async submitReport(
-    reporterId: string,
-    subjectType: string,
-    subjectId: string,
-    reason: string,
-    detail?: string,
-  ) {
-    const report = {
-      id: crypto.randomUUID(),
-      reporterId,
-      subjectType,
-      subjectId,
-      reason,
-      detail,
-      status: 'pending',
-      submittedAt: new Date(),
-    };
-    this.reports.push(report);
-    return report;
+  async submitReport(reporterId: string, subjectType: string, subjectId: string, reason: string, detail?: string) {
+    return this.prisma.report.create({ data: { reporterId, subjectType, subjectId, reason, detail, status: 'pending' } });
   }
 
   async getPendingReports() {
-    return this.reports.filter((r) => r.status === 'pending');
+    return this.prisma.report.findMany({ where: { status: 'pending' }, include: { reporter: { include: { profile: true } } }, orderBy: { submittedAt: 'asc' } });
   }
 
   async resolveReport(reportId: string, moderatorId: string, resolution: string) {
-    const report = this.reports.find((r) => r.id === reportId);
+    const report = await this.prisma.report.findUnique({ where: { id: reportId } });
     if (!report) throw new NotFoundException('Report not found');
 
-    report.status = 'resolved';
-    report.resolution = resolution;
-    report.resolvedBy = moderatorId;
-    report.resolvedAt = new Date();
-
-    await this.auditService.log({
-      entityType: AuditEntityType.MODERATION,
-      entityId: reportId,
-      action: 'report_resolved',
-      actorId: moderatorId,
-      newState: { resolution },
+    const updated = await this.prisma.report.update({
+      where: { id: reportId },
+      data: { status: 'resolved', resolution, resolvedBy: moderatorId, resolvedAt: new Date() },
     });
-
-    return report;
+    await this.auditService.log({ entityType: AuditEntityType.MODERATION, entityId: reportId, action: 'report_resolved', actorId: moderatorId, newState: { resolution } });
+    return updated;
   }
 
-  // ── Enforcement Actions ──────────────────────────────────────────────────
-
-  async enforce(
-    targetUserId: string,
-    action: EnforcementActionType,
-    reason: string,
-    moderatorId: string,
-    expiresAt?: Date,
-  ) {
-    const enforcement = {
-      id: crypto.randomUUID(),
-      targetUserId,
-      action,
-      reason,
-      moderatorId,
-      expiresAt,
-      createdAt: new Date(),
-    };
-
-    this.enforcementActions.push(enforcement);
-
-    // Apply account-level effects
-    if (action === EnforcementActionType.SUSPEND) {
-      await this.usersService.updateStatus(targetUserId, AccountStatus.SUSPENDED);
-    } else if (action === EnforcementActionType.RESTRICT) {
-      await this.usersService.updateStatus(targetUserId, AccountStatus.RESTRICTED);
-    }
-
-    await this.auditService.log({
-      entityType: AuditEntityType.ENFORCEMENT,
-      entityId: targetUserId,
-      action: `enforcement_${action}`,
-      actorId: moderatorId,
-      newState: { action, reason, expiresAt },
+  async enforce(targetUserId: string, action: EnforcementActionType, reason: string, moderatorId: string, expiresAt?: Date) {
+    const enforcement = await this.prisma.enforcementAction.create({
+      data: { targetUserId, action, reason, actorId: moderatorId, expiresAt },
     });
 
+    const statusMap: Partial<Record<EnforcementActionType, AccountStatus>> = {
+      [EnforcementActionType.SUSPEND]: AccountStatus.SUSPENDED,
+      [EnforcementActionType.RESTRICT]: AccountStatus.RESTRICTED,
+    };
+    if (statusMap[action]) {
+      await this.prisma.user.update({ where: { id: targetUserId }, data: { status: statusMap[action] } });
+    }
+
+    await this.auditService.log({ entityType: AuditEntityType.ENFORCEMENT, entityId: targetUserId, action: `enforcement_${action}`, actorId: moderatorId, newState: { action, reason, expiresAt } });
     return enforcement;
   }
 
   async getEnforcementHistory(userId: string) {
-    return this.enforcementActions.filter((e) => e.targetUserId === userId);
+    return this.prisma.enforcementAction.findMany({ where: { targetUserId: userId }, orderBy: { createdAt: 'desc' } });
   }
 }

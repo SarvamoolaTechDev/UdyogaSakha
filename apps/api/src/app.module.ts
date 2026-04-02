@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { PrismaModule } from './prisma/prisma.module';
+import { AppConfigModule } from './config/app-config.module';
+import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { TrustModule } from './modules/trust/trust.module';
@@ -12,10 +15,17 @@ import { AuditModule } from './modules/audit/audit.module';
 
 @Module({
   imports: [
-    // Config — loads .env, available globally
+    // Config — must be first, loaded globally
     ConfigModule.forRoot({ isGlobal: true }),
 
-    // Core
+    // Infrastructure — global singletons
+    PrismaModule,
+    AppConfigModule,
+
+    // Ops
+    HealthModule,
+
+    // Core domain
     AuthModule,
     UsersModule,
 
@@ -32,7 +42,7 @@ import { AuditModule } from './modules/audit/audit.module';
     NotificationsModule,
     AuditModule,
 
-    // TODO Phase 2: PaymentsModule
+    // TODO Phase 2: PaymentsModule, SearchModule
     // TODO Phase 3: AnalyticsModule
   ],
 })

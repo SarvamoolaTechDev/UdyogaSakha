@@ -1,0 +1,88 @@
+version: '3.9'
+
+services:
+  # ── PostgreSQL ─────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: udyogasakha_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: udyoga
+      POSTGRES_PASSWORD: udyoga_dev
+      POSTGRES_DB: udyogasakha_dev
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U udyoga -d udyogasakha_dev']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: udyogasakha_redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Meilisearch ────────────────────────────────────────────────────────────
+  meilisearch:
+    image: getmeili/meilisearch:v1.8
+    container_name: udyogasakha_meilisearch
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: dev_master_key_change_in_prod
+      MEILI_ENV: development
+    ports:
+      - '7700:7700'
+    volumes:
+      - meilisearch_data:/meili_data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:7700/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── API (optional — run locally with `npm run dev` instead) ───────────────
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: udyogasakha_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgresql://udyoga:udyoga_dev@postgres:5432/udyogasakha_dev
+      REDIS_URL: redis://redis:6379
+      MEILISEARCH_HOST: http://meilisearch:7700
+      MEILISEARCH_API_KEY: dev_master_key_change_in_prod
+      JWT_SECRET: dev_jwt_secret_change_in_prod
+      JWT_REFRESH_SECRET: dev_jwt_refresh_secret_change_in_prod
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3002
+    ports:
+      - '3001:3001'
+    profiles:
+      - full   # Only starts with: docker compose --profile full up
+
+volumes:
+  postgres_data:
+  redis_data:
+  meilisearch_data:
