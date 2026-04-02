@@ -1,17 +1,12 @@
-import {
-  Controller, Get, Post, Patch, Body, Param, Query, UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { OpportunitiesService } from './opportunities.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser, Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '@udyogasakha/types';
-import {
-  CreateOpportunitySchema,
-  OpportunityFiltersSchema,
-  CreateOpportunityInput,
-} from '@udyogasakha/validators';
+import { CreateOpportunitySchema, OpportunityFiltersSchema } from '@udyogasakha/validators';
+import type { CreateOpportunityInput } from '@udyogasakha/validators';
 import { ZodPipe } from '../../common/pipes/zod.pipe';
 
 @ApiTags('Opportunities')
@@ -22,7 +17,7 @@ export class OpportunitiesController {
   constructor(private readonly service: OpportunitiesService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Create a new opportunity (goes to moderation)' })
+  @ApiOperation({ summary: 'Create a new opportunity (enters moderation queue)' })
   create(
     @CurrentUser('id') userId: string,
     @Body(new ZodPipe(CreateOpportunitySchema)) dto: CreateOpportunityInput,
@@ -42,8 +37,15 @@ export class OpportunitiesController {
     return this.service.findByRequester(userId);
   }
 
+  @Get('pending-moderation')
+  @Roles(UserRole.ADMIN, UserRole.MODERATOR)
+  @ApiOperation({ summary: '[Moderator] Get all opportunities awaiting moderation review' })
+  getPendingModeration() {
+    return this.service.getPendingModeration();
+  }
+
   @Get(':id')
-  @ApiOperation({ summary: 'Get a single opportunity' })
+  @ApiOperation({ summary: 'Get a single opportunity by ID' })
   findOne(@Param('id') id: string) {
     return this.service.findById(id);
   }
@@ -57,8 +59,6 @@ export class OpportunitiesController {
   ) {
     return this.service.close(id, userId, body.note);
   }
-
-  // ── Moderation actions ───────────────────────────────────────────────────
 
   @Patch(':id/publish')
   @Roles(UserRole.ADMIN, UserRole.MODERATOR)

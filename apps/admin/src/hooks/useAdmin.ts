@@ -1,13 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { opportunitiesApi, trustApi } from '@udyogasakha/api-client';
+import { opportunitiesApi, trustApi, auditApi, moderationApi } from '@udyogasakha/api-client';
 import { apiClient } from '@udyogasakha/api-client';
+import type { EnforcementActionType } from '@udyogasakha/types';
 
 // ── Moderation queue ──────────────────────────────────────────────────────────
-
 export function usePendingOpportunities() {
   return useQuery({
     queryKey: ['admin', 'moderation', 'opportunities'],
-    queryFn: () => apiClient.get('/moderation/opportunities/pending').then((r) => r.data),
+    queryFn: () => apiClient.get('/opportunities/pending-moderation').then((r) => r.data),
+    refetchInterval: 30_000,
   });
 }
 
@@ -22,18 +23,17 @@ export function usePublishOpportunity() {
 export function useRejectOpportunity() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
-      opportunitiesApi.reject(id, reason),
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => opportunitiesApi.reject(id, reason),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'moderation'] }),
   });
 }
 
 // ── Reports ───────────────────────────────────────────────────────────────────
-
 export function usePendingReports() {
   return useQuery({
     queryKey: ['admin', 'reports', 'pending'],
-    queryFn: () => apiClient.get('/moderation/reports/pending').then((r) => r.data),
+    queryFn: moderationApi.getPendingReports,
+    refetchInterval: 30_000,
   });
 }
 
@@ -41,13 +41,12 @@ export function useResolveReport() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, resolution }: { id: string; resolution: string }) =>
-      apiClient.patch(`/moderation/reports/${id}/resolve`, { resolution }).then((r) => r.data),
+      moderationApi.resolveReport(id, resolution),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'reports'] }),
   });
 }
 
 // ── Trust ─────────────────────────────────────────────────────────────────────
-
 export function useUserTrust(userId: string) {
   return useQuery({
     queryKey: ['admin', 'trust', userId],
@@ -73,21 +72,48 @@ export function useRevokeBadge() {
   });
 }
 
-// ── Enforcement ───────────────────────────────────────────────────────────────
+// ── Verification queue ────────────────────────────────────────────────────────
+export function usePendingVerifications() {
+  return useQuery({
+    queryKey: ['admin', 'trust', 'verifications'],
+    queryFn: () => apiClient.get('/trust/verifications/pending').then((r) => r.data),
+    refetchInterval: 30_000,
+  });
+}
 
+// ── Users ─────────────────────────────────────────────────────────────────────
+export function useUsers(search = '') {
+  return useQuery({
+    queryKey: ['admin', 'users', search],
+    queryFn: () => apiClient.get('/users', { params: { search } }).then((r) => r.data),
+  });
+}
+
+// ── Enforcement ───────────────────────────────────────────────────────────────
 export function useEnforce() {
   return useMutation({
-    mutationFn: (body: { targetUserId: string; action: string; reason: string; expiresAt?: string }) =>
-      apiClient.post('/moderation/enforce', body).then((r) => r.data),
+    mutationFn: (body: {
+      targetUserId: string;
+      action: EnforcementActionType;
+      reason: string;
+      expiresAt?: string;
+    }) => moderationApi.enforce(body),
   });
 }
 
 // ── Audit ─────────────────────────────────────────────────────────────────────
-
 export function useEntityAuditLog(entityType: string, entityId: string) {
   return useQuery({
     queryKey: ['admin', 'audit', entityType, entityId],
-    queryFn: () => apiClient.get(`/audit/entity/${entityType}/${entityId}`).then((r) => r.data),
+    queryFn: () => auditApi.getEntityLog(entityType as any, entityId),
     enabled: !!(entityType && entityId),
+  });
+}
+
+export function useActorAuditLog(actorId: string) {
+  return useQuery({
+    queryKey: ['admin', 'audit', 'actor', actorId],
+    queryFn: () => auditApi.getActorLog(actorId),
+    enabled: !!actorId,
   });
 }

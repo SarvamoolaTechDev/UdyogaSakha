@@ -12,37 +12,27 @@ import { ModerationModule } from './modules/moderation/moderation.module';
 import { GovernanceModule } from './modules/governance/governance.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { QueueModule } from './modules/queue/queue.module';
+import { SearchModule } from './modules/search/search.module';
 
 @Module({
   imports: [
-    // Config — must be first, loaded globally
     ConfigModule.forRoot({ isGlobal: true }),
-
-    // Infrastructure — global singletons
     PrismaModule,
     AppConfigModule,
-
-    // Ops
     HealthModule,
-
-    // Core domain
     AuthModule,
     UsersModule,
-
-    // Platform heart
     TrustModule,
     OpportunitiesModule,
     EngagementsModule,
-
-    // Governance & oversight
     ModerationModule,
     GovernanceModule,
-
-    // Cross-cutting
     NotificationsModule,
     AuditModule,
-
-    // TODO Phase 2: PaymentsModule, SearchModule
+    QueueModule,
+    SearchModule,
+    // TODO Phase 2: PaymentsModule
     // TODO Phase 3: AnalyticsModule
   ],
 })

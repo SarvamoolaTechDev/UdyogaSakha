@@ -1,14 +1,16 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { OpportunityStatus, AuditEntityType } from '@udyogasakha/types';
-import { CreateOpportunityInput, OpportunityFiltersInput } from '@udyogasakha/validators';
+import type { CreateOpportunityInput, OpportunityFiltersInput } from '@udyogasakha/validators';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { QueueService } from '../queue/queue.service';
 
 @Injectable()
 export class OpportunitiesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly queueService: QueueService,
   ) {}
 
   async create(requesterId: string, dto: CreateOpportunityInput) {
@@ -33,7 +35,6 @@ export class OpportunitiesService {
     const page = filters.page ?? 1;
     const limit = filters.limit ?? 20;
     const where: any = { status: OpportunityStatus.PUBLISHED };
-
     if (filters.moduleType) where.moduleType = filters.moduleType;
     if (filters.trustLevelRequired !== undefined) where.trustLevelRequired = { lte: filters.trustLevelRequired };
     if (filters.search) {
@@ -42,12 +43,10 @@ export class OpportunitiesService {
         { description: { contains: filters.search, mode: 'insensitive' } },
       ];
     }
-
     const [data, total] = await this.prisma.$transaction([
       this.prisma.opportunity.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: { publishedAt: 'desc' }, include: { requester: { include: { profile: true } } } }),
       this.prisma.opportunity.count({ where }),
     ]);
-
     return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
@@ -62,7 +61,11 @@ export class OpportunitiesService {
   }
 
   async getPendingModeration() {
-    return this.prisma.opportunity.findMany({ where: { status: OpportunityStatus.MODERATION }, orderBy: { createdAt: 'asc' } });
+    return this.prisma.opportunity.findMany({
+      where: { status: OpportunityStatus.MODERATION },
+      orderBy: { createdAt: 'asc' },
+      include: { requester: { include: { profile: true, trustRecord: true } } },
+    });
   }
 
   async publish(opportunityId: string, moderatorId: string) {
@@ -75,6 +78,10 @@ export class OpportunitiesService {
       data: { status: OpportunityStatus.PUBLISHED, publishedAt: new Date() },
     });
     await this.auditService.log({ entityType: AuditEntityType.OPPORTUNITY, entityId: opportunityId, action: 'published', actorId: moderatorId, oldState: { status: opp.status }, newState: { status: OpportunityStatus.PUBLISHED } });
+    // Queue search index sync
+    await this.queueService.indexOpportunity(opportunityId);
+    // Queue notification to requester
+    await this.queueService.notifyOpportunityPublished(opp.requesterId, opp.title);
     return updated;
   }
 
@@ -96,6 +103,8 @@ export class OpportunitiesService {
       data: { status: OpportunityStatus.CLOSED, closureNote: note },
     });
     await this.auditService.log({ entityType: AuditEntityType.OPPORTUNITY, entityId: opportunityId, action: 'closed', actorId: requesterId, newState: { status: OpportunityStatus.CLOSED, note } });
+    // Remove from search index
+    await this.queueService.removeOpportunityFromIndex(opportunityId);
     return updated;
   }
 }

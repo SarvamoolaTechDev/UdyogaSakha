@@ -2,7 +2,9 @@ import { Controller, Post, Body, UseGuards, Req, HttpCode, HttpStatus } from '@n
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RegisterSchema, LoginSchema, RegisterInput, LoginInput } from '@udyogasakha/validators';
+import { CurrentUser } from '../../common/decorators/roles.decorator';
+import { RegisterSchema, LoginSchema } from '@udyogasakha/validators';
+import type { RegisterInput, LoginInput } from '@udyogasakha/validators';
 import { ZodPipe } from '../../common/pipes/zod.pipe';
 
 @ApiTags('Auth')
@@ -27,19 +29,18 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Refresh access token using refresh token' })
-  refresh(@Req() req: any) {
-    return this.authService.refresh(req.user.id);
+  @ApiOperation({ summary: 'Rotate refresh token — returns new access + refresh token pair' })
+  refresh(@CurrentUser('id') userId: string, @Body() body: { refreshToken: string }) {
+    return this.authService.refresh(userId, body.refreshToken);
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Logout (client should discard tokens)' })
-  logout() {
-    // Stateless JWT — client discards tokens.
-    // TODO Phase 2: add token blocklist in Redis for sensitive accounts
+  @ApiOperation({ summary: 'Logout — revokes all refresh tokens for this user' })
+  async logout(@CurrentUser('id') userId: string) {
+    await this.authService.logout(userId);
     return { message: 'Logged out successfully' };
   }
 }

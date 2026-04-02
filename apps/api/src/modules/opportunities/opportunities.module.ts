@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { OpportunitiesController } from './opportunities.controller';
 import { OpportunitiesService } from './opportunities.service';
-import { TrustModule } from '../trust/trust.module';
 import { AuditModule } from '../audit/audit.module';
+import { QueueModule } from '../queue/queue.module';
 
 @Module({
-  imports: [TrustModule, AuditModule],
+  imports: [AuditModule, QueueModule],
   controllers: [OpportunitiesController],
   providers: [OpportunitiesService],
   exports: [OpportunitiesService],
