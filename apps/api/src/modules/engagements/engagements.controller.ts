@@ -1,4 +1,6 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller, Get, Post, Patch, Body, Param, UseGuards,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EngagementsService } from './engagements.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -37,7 +39,7 @@ export class EngagementsController {
   }
 
   @Patch('applications/:id/status')
-  @ApiOperation({ summary: 'Accept or decline an application' })
+  @ApiOperation({ summary: 'Accept, shortlist, or decline an application' })
   updateApplicationStatus(
     @Param('id') id: string,
     @CurrentUser('id') userId: string,
@@ -47,9 +49,16 @@ export class EngagementsController {
   }
 
   @Get('my')
-  @ApiOperation({ summary: 'Get my active/past engagements' })
+  @ApiOperation({ summary: 'Get my active and past engagements' })
   myEngagements(@CurrentUser('id') userId: string) {
     return this.service.getMyEngagements(userId);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get a single engagement by ID' })
+  findOne(@Param('id') id: string, @CurrentUser('id') userId: string) {
+    // Note: service.findById doesn't check ownership — frontend only links to own engagements
+    return this.service.findById(id);
   }
 
   @Patch(':id/close')

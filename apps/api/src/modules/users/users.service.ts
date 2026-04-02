@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { AccountStatus, TrustLevel, UserRole } from '@udyogasakha/types';
-import { RegisterInput } from '@udyogasakha/validators';
+import type { RegisterInput } from '@udyogasakha/validators';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -52,6 +52,23 @@ export class UsersService {
     });
     if (!user) throw new NotFoundException('User not found');
     return user;
+  }
+
+  async search(query: string, limit = 50) {
+    return this.prisma.user.findMany({
+      where: query
+        ? {
+            OR: [
+              { email: { contains: query, mode: 'insensitive' } },
+              { phone: { contains: query } },
+              { profile: { fullName: { contains: query, mode: 'insensitive' } } },
+            ],
+          }
+        : {},
+      include: { profile: true, trustRecord: true },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
   }
 
   async updateProfile(userId: string, data: Record<string, unknown>) {

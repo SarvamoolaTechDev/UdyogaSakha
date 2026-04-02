@@ -2,8 +2,17 @@
 // Run: npx prisma migrate dev --name init
 
 generator client {
+  output   = "../../../node_modules/.prisma/client"
   provider = "prisma-client-js"
 }
+
+
+generator erd {
+  provider = "prisma-erd-generator"
+  output   = "../../../docs/ERD.svg"
+  theme    = "default"
+}
+
 
 datasource db {
   provider = "postgresql"
@@ -133,6 +142,7 @@ model User {
   enforcementsTaken  EnforcementAction[] @relation("EnforcementActor")
   reportsSubmitted   Report[]           @relation("Reporter")
   auditActions       AuditLog[]
+  notifications      Notification[]
 
   @@map("users")
 }
@@ -390,4 +400,21 @@ model AuditLog {
   @@index([actorId])
   @@index([ts])
   @@map("audit_log")
+}
+
+// ─── In-App Notifications ─────────────────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  subject   String?
+  body      String
+  data      Json?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@map("notifications")
 }

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
 import { AppConfigModule } from './config/app-config.module';
 import { HealthModule } from './modules/health/health.module';
@@ -14,10 +15,13 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { AuditModule } from './modules/audit/audit.module';
 import { QueueModule } from './modules/queue/queue.module';
 import { SearchModule } from './modules/search/search.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    // Rate limiting: 60 req/min per IP globally
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }]),
     PrismaModule,
     AppConfigModule,
     HealthModule,
@@ -32,8 +36,8 @@ import { SearchModule } from './modules/search/search.module';
     AuditModule,
     QueueModule,
     SearchModule,
+    AnalyticsModule,
     // TODO Phase 2: PaymentsModule
-    // TODO Phase 3: AnalyticsModule
   ],
 })
 export class AppModule {}

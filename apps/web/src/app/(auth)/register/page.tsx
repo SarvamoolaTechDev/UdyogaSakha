@@ -25,7 +25,7 @@ export default function RegisterPage() {
   const mutation = useMutation({
     mutationFn: authApi.register,
     onSuccess: (data) => {
-      setTokens({ ...data, userId: 'decoded-from-jwt' });
+      setTokens(data);
       router.push('/dashboard');
     },
   });
@@ -47,13 +47,13 @@ export default function RegisterPage() {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number (optional)</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number <span className="text-gray-400 font-normal">(optional)</span></label>
         <input {...register('phone')} type="tel" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1D9E75]" placeholder="10-digit mobile number" />
         {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone.message}</p>}
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">I am registering as</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Registering as</label>
         <select {...register('participantType')} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1D9E75]">
           <option value={ParticipantType.INDIVIDUAL}>Individual</option>
           <option value={ParticipantType.ORGANIZATION}>Organisation</option>

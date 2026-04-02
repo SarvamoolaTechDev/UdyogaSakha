@@ -5,8 +5,9 @@ let _onUnauthorized: (() => void) | null = null;
 
 /**
  * Call once at app startup to wire up token retrieval and 401 handler.
- * - Web:    pass () => localStorage / Zustand store getter
- * - Mobile: pass () => SecureStore.getItemAsync(...)
+ * Web:    pass () => Zustand store getter
+ * Admin:  pass () => sessionStorage.getItem(...)
+ * Mobile: pass () => SecureStore.getItemAsync(...)
  */
 export function configureApiClient(opts: {
   getToken: () => string | null;
@@ -32,9 +33,22 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config;
 });
 
-// Handle 401 globally
+// Unwrap TransformInterceptor envelope: { data, statusCode, timestamp } → data
+// and handle 401 globally
 apiClient.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    // If response has the TransformInterceptor shape, unwrap it
+    if (
+      res.data &&
+      typeof res.data === 'object' &&
+      'data' in res.data &&
+      'statusCode' in res.data &&
+      'timestamp' in res.data
+    ) {
+      res.data = res.data.data;
+    }
+    return res;
+  },
   (error) => {
     if (error.response?.status === 401) {
       _onUnauthorized?.();

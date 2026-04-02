@@ -1,5 +1,5 @@
 import { apiClient } from '../client';
-import { Application, Engagement } from '@udyogasakha/types';
+import type { Application, Engagement } from '@udyogasakha/types';
 
 export const engagementsApi = {
   apply: (opportunityId: string, coverMessage?: string) =>
@@ -16,6 +16,9 @@ export const engagementsApi = {
 
   getMyEngagements: () =>
     apiClient.get<Engagement[]>('/engagements/my').then((r) => r.data),
+
+  getById: (id: string) =>
+    apiClient.get<Engagement>(`/engagements/${id}`).then((r) => r.data),
 
   closeEngagement: (id: string, status: string, note?: string) =>
     apiClient.patch(`/engagements/${id}/close`, { status, note }).then((r) => r.data),

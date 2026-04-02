@@ -1,10 +1,5 @@
 /**
  * Creates a mock PrismaService where every model method is a jest.fn().
- * Import this in unit tests instead of the real PrismaService.
- *
- * Usage:
- *   const prisma = createMockPrisma();
- *   prisma.user.findUnique.mockResolvedValue({ id: '1', email: 'a@b.com', ... });
  */
 export function createMockPrisma() {
   const mockModel = () => ({
@@ -18,6 +13,7 @@ export function createMockPrisma() {
     delete: jest.fn(),
     deleteMany: jest.fn(),
     count: jest.fn(),
+    groupBy: jest.fn(),
   });
 
   return {
@@ -37,6 +33,7 @@ export function createMockPrisma() {
     report: mockModel(),
     enforcementAction: mockModel(),
     auditLog: mockModel(),
+    notification: mockModel(),
     $transaction: jest.fn((args: unknown[]) => Promise.all(args)),
     $queryRaw: jest.fn(),
     $executeRawUnsafe: jest.fn(),
@@ -45,7 +42,6 @@ export function createMockPrisma() {
   };
 }
 
-/** Builds a minimal valid User object for tests */
 export function mockUser(overrides: Record<string, unknown> = {}) {
   return {
     id: 'user-test-id',
@@ -72,22 +68,51 @@ export function mockUser(overrides: Record<string, unknown> = {}) {
   };
 }
 
-/** Builds a minimal valid Opportunity object for tests */
 export function mockOpportunity(overrides: Record<string, unknown> = {}) {
   return {
     id: 'opp-test-id',
     requesterId: 'user-test-id',
     moduleType: 'EMPLOYMENT_EXCHANGE',
     title: 'Test Opportunity',
-    description: 'A test opportunity description',
+    description: 'A test opportunity description with enough characters',
     trustLevelRequired: 'L1_DOCUMENT_VERIFIED',
     status: 'PUBLISHED',
     isPublic: true,
     details: {},
     publishedAt: new Date('2024-01-01'),
     closesAt: null,
+    rejectionReason: null,
+    closureNote: null,
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
+    ...overrides,
+  };
+}
+
+export function mockEngagement(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'eng-test-id',
+    opportunityId: 'opp-test-id',
+    requesterId: 'requester-id',
+    providerId: 'provider-id',
+    status: 'INITIATED',
+    startedAt: new Date('2024-01-01'),
+    closedAt: null,
+    closureNote: null,
+    completionAcknowledgedAt: null,
+    ...overrides,
+  };
+}
+
+export function mockNotification(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'notif-test-id',
+    userId: 'user-test-id',
+    subject: 'Test notification',
+    body: 'Test notification body',
+    data: null,
+    read: false,
+    createdAt: new Date('2024-01-01'),
     ...overrides,
   };
 }

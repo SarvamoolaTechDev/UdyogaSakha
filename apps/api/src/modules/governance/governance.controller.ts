@@ -72,4 +72,19 @@ export class GovernanceController {
   ) {
     return this.service.recordSessionOutcome(id, panelMemberId, body.outcome, body.notes);
   }
+
+  @Get('members/:memberId/conflicts')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: '[Admin] Get conflict declarations for a governance member' })
+  getMemberConflicts(@Param('memberId') memberId: string) {
+    return this.service.getConflictDeclarations(memberId);
+  }
+
+  @Get('sessions')
+  @Roles(UserRole.ADMIN, UserRole.GOVERNANCE_MEMBER)
+  @ApiOperation({ summary: '[Governance] List all screening sessions' })
+  getSessions(@Query('status') status?: string) {
+    return this.service.getSessions(status ? { status } : undefined);
+  }
 }
+

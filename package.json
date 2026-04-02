@@ -15,7 +15,8 @@
     "db:seed": "turbo run db:seed --filter=@udyogasakha/api",
     "prepare": "husky",
     "lint:fix": "eslint --fix \"**/*.{ts,tsx}\"",
-    "format": "prettier --write \"**/*.{ts,tsx,json}\""
+    "format": "prettier --write \"**/*.{ts,tsx,json}\"",
+    "test:e2e": "turbo run test:e2e --filter=@udyogasakha/api"
   },
   "devDependencies": {
     "turbo": "^2.0.0",

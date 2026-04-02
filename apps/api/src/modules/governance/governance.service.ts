@@ -118,4 +118,11 @@ export class GovernanceService {
     });
     return updated;
   }
+
+  async getSessions(filters?: { status?: string }) {
+    return this.prisma.screeningSession.findMany({
+      where: filters?.status ? { status: filters.status } : {},
+      orderBy: { scheduledAt: 'desc' },
+    });
+  }
 }

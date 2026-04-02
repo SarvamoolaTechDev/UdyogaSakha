@@ -8,7 +8,7 @@ export const CreateOpportunitySchema = z.object({
   trustLevelRequired: z.nativeEnum(TrustLevel).default(TrustLevel.L1_DOCUMENT_VERIFIED),
   isPublic: z.boolean().default(true),
   closesAt: z.coerce.date().optional(),
-  details: z.record(z.unknown()),  // Module-specific — validated per module in service layer
+  details: z.record(z.unknown()),
 });
 
 export const OpportunityFiltersSchema = z.object({
@@ -24,21 +24,10 @@ export const SubmitApplicationSchema = z.object({
   coverMessage: z.string().max(2000).optional(),
 });
 
-export const FeedbackSchema = z.object({
-  rating: z.number().int().min(1).max(5),
-  comment: z.string().max(1000).optional(),
-});
-
-export type CreateOpportunityInput = z.infer<typeof CreateOpportunitySchema>;
-export type OpportunityFiltersInput = z.infer<typeof OpportunityFiltersSchema>;
-
-
-// Moderation validators
 export const RejectOpportunitySchema = z.object({
   reason: z.string().min(10, 'Please provide a meaningful reason').max(1000),
 });
 
-// Engagement validators  
 export const UpdateApplicationStatusSchema = z.object({
   status: z.enum(['SHORTLISTED', 'ACCEPTED', 'DECLINED']),
   reviewNote: z.string().max(500).optional(),
@@ -54,4 +43,6 @@ export const FeedbackSchema = z.object({
   comment: z.string().max(1000).optional(),
 });
 
+export type CreateOpportunityInput = z.infer<typeof CreateOpportunitySchema>;
+export type OpportunityFiltersInput = z.infer<typeof OpportunityFiltersSchema>;
 export type FeedbackInput = z.infer<typeof FeedbackSchema>;

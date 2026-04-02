@@ -1,9 +1,11 @@
-import { NestFactory } from '@nestjs/core';
+import { NestFactory, Reflector } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { AppConfigService } from './config/app-config.service';
 
 async function bootstrap() {
@@ -17,14 +19,20 @@ async function bootstrap() {
   // Global exception filter — uniform error shape
   app.useGlobalFilters(new AllExceptionsFilter());
 
-  // Global validation pipe — strips unknown fields, validates all DTOs
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
+  // Global interceptors
+  app.useGlobalInterceptors(
+    new LoggingInterceptor(),
+    new TransformInterceptor(),
   );
+
+  // Global validation pipe
+  app.useGlobalPipes(
+    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+  );
+
+  // WebSocket adapter (needed for Socket.io gateway)
+  const { IoAdapter } = await import('@nestjs/platform-socket.io');
+  app.useWebSocketAdapter(new IoAdapter(app));
 
   // API prefix
   app.setGlobalPrefix('api/v1');

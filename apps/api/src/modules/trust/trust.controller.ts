@@ -19,6 +19,13 @@ export class TrustController {
     return this.trustService.getTrustSummary(userId);
   }
 
+  @Get('verifications/pending')
+  @Roles(UserRole.ADMIN, UserRole.MODERATOR)
+  @ApiOperation({ summary: '[Moderator] Get pending L1 verification requests' })
+  getPendingVerifications() {
+    return this.trustService.getPendingVerifications();
+  }
+
   @Get(':userId')
   @Roles(UserRole.ADMIN, UserRole.MODERATOR)
   @ApiOperation({ summary: '[Moderator] Get trust summary for a user' })
@@ -38,10 +45,7 @@ export class TrustController {
   @Post(':userId/approve-l1')
   @Roles(UserRole.ADMIN, UserRole.MODERATOR)
   @ApiOperation({ summary: '[Moderator] Approve L1 document verification' })
-  approveL1(
-    @Param('userId') userId: string,
-    @CurrentUser('id') moderatorId: string,
-  ) {
+  approveL1(@Param('userId') userId: string, @CurrentUser('id') moderatorId: string) {
     return this.trustService.approveL1(userId, moderatorId);
   }
 

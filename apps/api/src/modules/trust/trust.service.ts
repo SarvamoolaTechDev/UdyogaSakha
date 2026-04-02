@@ -98,4 +98,14 @@ export class TrustService {
       data: { userId, badgeType, grantedBy, status: TrustBadgeStatus.ACTIVE },
     });
   }
+
+
+  /** Get all pending L1 verification requests — for moderation dashboard */
+  async getPendingVerifications() {
+    return this.prisma.verificationRequest.findMany({
+      where: { status: 'pending' },
+      orderBy: { requestedAt: 'asc' },
+    });
+  }
 }
+

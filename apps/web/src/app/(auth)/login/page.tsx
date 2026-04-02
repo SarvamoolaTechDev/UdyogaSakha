@@ -1,10 +1,9 @@
 'use client';
 
-import type { Metadata } from 'next';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { LoginSchema } from '@udyogasakha/validators';
 import type { LoginInput } from '@udyogasakha/validators';
@@ -13,6 +12,7 @@ import { useAuthStore } from '@/store/auth.store';
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const setTokens = useAuthStore((s) => s.setTokens);
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginInput>({
@@ -22,9 +22,9 @@ export default function LoginPage() {
   const mutation = useMutation({
     mutationFn: authApi.login,
     onSuccess: (data) => {
-      // TODO: decode JWT to get userId
-      setTokens({ ...data, userId: 'decoded-from-jwt' });
-      router.push('/dashboard');
+      setTokens(data);
+      const from = searchParams.get('from') ?? '/dashboard';
+      router.push(from);
     },
   });
 
