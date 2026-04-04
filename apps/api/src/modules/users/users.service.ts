@@ -88,4 +88,31 @@ export class UsersService {
     const { passwordHash, ...safe } = user;
     return safe;
   }
+
+  /**
+   * DPDP right to erasure — permanently deletes the account.
+   * Soft-blocks if user has active engagements (must close first).
+   * Audit logs are retained per legal retention policy (cascade delete excludes audit_log).
+   */
+  async deleteAccount(userId: string) {
+    const user = await this.findById(userId);
+
+    // Check for active engagements
+    const activeEngagements = await this.prisma.engagement.count({
+      where: {
+        OR: [{ requesterId: userId }, { providerId: userId }],
+        status: { in: ['INITIATED', 'IN_PROGRESS'] },
+      },
+    });
+
+    if (activeEngagements > 0) {
+      throw new Error(
+        `Cannot delete account with ${activeEngagements} active engagement(s). Please close all engagements first.`,
+      );
+    }
+
+    // Prisma cascade handles: profile, trustRecord, badges, documents, applications, opportunities
+    // audit_log entries are RETAINED (legal requirement — actorId FK is set to restrict delete)
+    await this.prisma.user.delete({ where: { id: userId } });
+  }
 }

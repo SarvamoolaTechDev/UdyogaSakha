@@ -2,19 +2,48 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "module": "esnext",
     "moduleResolution": "bundler",
     "jsx": "preserve",
     "incremental": true,
-    "plugins": [{ "name": "next" }],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
     "paths": {
-      "@/*": ["./src/*"],
-      "@udyogasakha/types": ["../../packages/types/src"],
-      "@udyogasakha/validators": ["../../packages/validators/src"],
-      "@udyogasakha/api-client": ["../../packages/api-client/src"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@udyogasakha/types": [
+        "../../packages/types/src"
+      ],
+      "@udyogasakha/validators": [
+        "../../packages/validators/src"
+      ],
+      "@udyogasakha/api-client": [
+        "../../packages/api-client/src"
+      ],
+      "@udyogasakha/ui": [
+        "../../packages/ui/src"
+      ],
+      "@udyogasakha/ui/*": [
+        "../../packages/ui/src/*"
+      ]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }

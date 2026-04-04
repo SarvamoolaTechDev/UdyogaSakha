@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { useEnforce, useUserTrust } from '@/hooks/useAdmin';
 import { TrustBadge, formatDate } from './ui';

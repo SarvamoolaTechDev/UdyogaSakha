@@ -13,6 +13,7 @@ const navLinks = [
   { href: '/opportunities/my',  label: 'My Listings'    },
   { href: '/engagements',       label: 'Engagements'    },
   { href: '/profile',           label: 'Profile & Trust'},
+  { href: '/settings',          label: 'Settings'        },
 ];
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {

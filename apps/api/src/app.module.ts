@@ -1,8 +1,11 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
 import { AppConfigModule } from './config/app-config.module';
+import { LoggerModule } from './common/logger/logger.module';
+import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
+import { SanitizeMiddleware } from './common/middleware/sanitize.middleware';
 import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -16,28 +19,49 @@ import { AuditModule } from './modules/audit/audit.module';
 import { QueueModule } from './modules/queue/queue.module';
 import { SearchModule } from './modules/search/search.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { SchedulerModule } from './modules/scheduler/scheduler.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    // Rate limiting: 60 req/min per IP globally
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }]),
+
+    // Infrastructure
     PrismaModule,
     AppConfigModule,
+    LoggerModule,
+
+    // Ops
     HealthModule,
+    SchedulerModule,
+
+    // Core domain
     AuthModule,
     UsersModule,
     TrustModule,
     OpportunitiesModule,
     EngagementsModule,
+
+    // Governance & oversight
     ModerationModule,
     GovernanceModule,
+
+    // Cross-cutting
     NotificationsModule,
     AuditModule,
+
+    // Infrastructure services
     QueueModule,
     SearchModule,
     AnalyticsModule,
+
     // TODO Phase 2: PaymentsModule
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(RequestIdMiddleware, SanitizeMiddleware)
+      .forRoutes('*');
+  }
+}

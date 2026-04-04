@@ -256,4 +256,4 @@ All PRs require passing CI (lint + typecheck + unit tests).
 
 ## Licence
 
-Proprietary — Foundation-governed project. All rights reserved.
+Proprietary — Sarvamoola Foundation governed project. All rights reserved.
