@@ -167,8 +167,12 @@ model UserProfile {
 model UserDocument {
   id          String       @id @default(uuid())
   userId      String       @map("user_id")
-  docType     DocumentType @map("doc_type")
-  storageKey  String       @map("storage_key") // S3/R2 object key — never a public URL
+  documentId  String       @unique @map("document_id") @default(uuid())
+  docType     DocumentType @default(IDENTITY) @map("doc_type")
+  filename    String       @default("")
+  mimeType    String       @default("application/octet-stream") @map("mime_type")
+  sizeBytes   Int          @default(0) @map("size_bytes")
+  storageKey  String       @map("storage_key")
   uploadedAt  DateTime     @default(now()) @map("uploaded_at")
   verifiedAt  DateTime?    @map("verified_at")
   verifierId  String?      @map("verifier_id")

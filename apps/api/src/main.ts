@@ -64,6 +64,13 @@ async function bootstrap() {
     SwaggerModule.setup('api/docs', app, SwaggerModule.createDocument(app, swaggerConfig));
   }
 
+  // Serve uploaded documents locally (Phase 2: replace with CDN/presigned URLs)
+  if (!config.isProduction) {
+    const { join } = await import('path');
+    const { NestExpressApplication } = await import('@nestjs/platform-express');
+    (app as any).useStaticAssets?.(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
+  }
+
   await app.listen(config.port);
   logger.log(`API running on port ${config.port} [${config.nodeEnv}]`, 'Bootstrap');
 }

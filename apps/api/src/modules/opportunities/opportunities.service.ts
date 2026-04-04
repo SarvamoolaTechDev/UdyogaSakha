@@ -107,4 +107,29 @@ export class OpportunitiesService {
     await this.queueService.removeOpportunityFromIndex(opportunityId);
     return updated;
   }
+
+  async update(id: string, requesterId: string, dto: Partial<any>) {
+    const opp = await this.findById(id);
+    if (opp.requesterId !== requesterId) {
+      throw new ForbiddenException('Only the requester can edit this opportunity');
+    }
+    if (!['DRAFT', 'REJECTED'].includes(opp.status)) {
+      throw new ForbiddenException('Only DRAFT or REJECTED opportunities can be edited');
+    }
+    const updated = await this.prisma.opportunity.update({
+      where: { id },
+      data: {
+        ...dto,
+        status: 'DRAFT', // re-enter draft if was rejected
+        rejectionReason: null,
+      },
+    });
+    await this.auditService.log({
+      entityType: AuditEntityType.OPPORTUNITY, entityId: id,
+      action: 'updated', actorId: requesterId,
+      newState: dto,
+    });
+    return updated;
+  }
+
 }

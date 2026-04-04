@@ -43,7 +43,8 @@
     "meilisearch": "^0.40.0",
     "@nestjs/throttler": "^5.2.0",
     "prisma-erd-generator": "^1.11.2",
-    "@mermaid-js/mermaid-cli": "^10.9.0"
+    "@mermaid-js/mermaid-cli": "^10.9.0",
+    "multer": "^1.4.5-lts.1"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.3.2",
@@ -56,6 +57,7 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.4.0",
     "supertest": "^7.0.0",
-    "@types/supertest": "^6.0.2"
+    "@types/supertest": "^6.0.2",
+    "@types/multer": "^1.4.11"
   }
 }

@@ -17,7 +17,7 @@ export class OpportunitiesController {
   constructor(private readonly service: OpportunitiesService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Create a new opportunity (enters moderation queue)' })
+  @ApiOperation({ summary: 'Create a new opportunity — enters moderation queue' })
   create(
     @CurrentUser('id') userId: string,
     @Body(new ZodPipe(CreateOpportunitySchema)) dto: CreateOpportunityInput,
@@ -26,7 +26,7 @@ export class OpportunitiesController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Browse published opportunities' })
+  @ApiOperation({ summary: 'Browse published opportunities (paginated, filterable)' })
   findAll(@Query(new ZodPipe(OpportunityFiltersSchema)) filters: any) {
     return this.service.findAll(filters);
   }
@@ -39,7 +39,7 @@ export class OpportunitiesController {
 
   @Get('pending-moderation')
   @Roles(UserRole.ADMIN, UserRole.MODERATOR)
-  @ApiOperation({ summary: '[Moderator] Get all opportunities awaiting moderation review' })
+  @ApiOperation({ summary: '[Moderator] Get all opportunities awaiting review' })
   getPendingModeration() {
     return this.service.getPendingModeration();
   }
@@ -48,6 +48,16 @@ export class OpportunitiesController {
   @ApiOperation({ summary: 'Get a single opportunity by ID' })
   findOne(@Param('id') id: string) {
     return this.service.findById(id);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update a DRAFT opportunity before it enters moderation' })
+  update(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: Partial<CreateOpportunityInput>,
+  ) {
+    return this.service.update(id, userId, dto);
   }
 
   @Patch(':id/close')
@@ -62,14 +72,14 @@ export class OpportunitiesController {
 
   @Patch(':id/publish')
   @Roles(UserRole.ADMIN, UserRole.MODERATOR)
-  @ApiOperation({ summary: '[Moderator] Publish an opportunity after review' })
+  @ApiOperation({ summary: '[Moderator] Approve and publish an opportunity' })
   publish(@Param('id') id: string, @CurrentUser('id') moderatorId: string) {
     return this.service.publish(id, moderatorId);
   }
 
   @Patch(':id/reject')
   @Roles(UserRole.ADMIN, UserRole.MODERATOR)
-  @ApiOperation({ summary: '[Moderator] Reject an opportunity listing' })
+  @ApiOperation({ summary: '[Moderator] Reject an opportunity listing with reason' })
   reject(
     @Param('id') id: string,
     @CurrentUser('id') moderatorId: string,

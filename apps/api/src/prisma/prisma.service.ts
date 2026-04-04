@@ -32,7 +32,7 @@ export class PrismaService
       throw new Error('cleanDatabase() cannot run in production');
     }
     const tables = [
-      'audit_log', 'enforcement_actions', 'reports',
+      'notifications', 'audit_log', 'enforcement_actions', 'reports',
       'screening_sessions', 'conflict_declarations', 'governance_members',
       'engagement_feedback', 'engagements', 'applications',
       'opportunities', 'verification_requests', 'trust_badges',

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useSearch } from '@/hooks/useSearch';
 import { OpportunityCard } from '@/components/ui/OpportunityCard';
@@ -11,28 +12,56 @@ import { ModuleType } from '@udyogasakha/types';
 import { moduleTypeLabel } from '@/lib/utils';
 
 const MODULE_FILTERS = [
-  { value: undefined, label: 'All' },
+  { value: '', label: 'All' },
   ...Object.values(ModuleType).map((v) => ({ value: v, label: moduleTypeLabel(v) })),
 ];
 
+/** Sync search state to/from URL query params so links are shareable */
+function useUrlState() {
+  const router       = useRouter();
+  const pathname     = usePathname();
+  const searchParams = useSearchParams();
+
+  const q          = searchParams.get('q')      ?? '';
+  const moduleType = (searchParams.get('module') ?? '') as ModuleType | '';
+  const page       = parseInt(searchParams.get('page') ?? '1', 10);
+
+  const setParams = useCallback(
+    (updates: { q?: string; module?: string; page?: number }) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (updates.q   !== undefined) updates.q   ? params.set('q', updates.q)         : params.delete('q');
+      if (updates.module !== undefined) updates.module ? params.set('module', updates.module) : params.delete('module');
+      if (updates.page !== undefined) updates.page > 1 ? params.set('page', String(updates.page)) : params.delete('page');
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [router, pathname, searchParams],
+  );
+
+  return { q, moduleType, page, setParams };
+}
+
 export default function OpportunitiesPage() {
-  const [rawQ, setRawQ] = useState('');
-  const [q, setQ] = useState('');
-  const [moduleType, setModuleType] = useState<ModuleType | undefined>(undefined);
-  const [page, setPage] = useState(1);
-  const [applyTarget, setApplyTarget] = useState<{ id: string; title: string } | null>(null);
+  const { q, moduleType, page, setParams } = useUrlState();
+  const [rawQ, setRawQ]                    = useState(q);
+  const [applyTarget, setApplyTarget]      = useState<{ id: string; title: string } | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
-  const handleSearch = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setRawQ(e.target.value);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setQ(e.target.value);
-      setPage(1);
-    }, 400);
-  }, []);
+  // Keep rawQ in sync if URL changes externally (back/forward navigation)
+  useEffect(() => { setRawQ(q); }, [q]);
 
-  const { data, isLoading } = useSearch({ q, moduleType, page, limit: 20 });
+  const handleSearch = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setRawQ(val);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setParams({ q: val, page: 1 }), 400);
+  }, [setParams]);
+
+  const { data, isLoading } = useSearch({
+    q:          q     || undefined,
+    moduleType: (moduleType as ModuleType) || undefined,
+    page,
+    limit: 20,
+  });
 
   return (
     <div className="space-y-5">
@@ -46,6 +75,7 @@ export default function OpportunitiesPage() {
         </Link>
       </div>
 
+      {/* Search */}
       <input
         type="search"
         value={rawQ}
@@ -54,11 +84,12 @@ export default function OpportunitiesPage() {
         className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1D9E75]"
       />
 
+      {/* Module filter chips */}
       <div className="flex flex-wrap gap-2">
         {MODULE_FILTERS.map((f) => (
           <button
             key={f.label}
-            onClick={() => { setModuleType(f.value as ModuleType | undefined); setPage(1); }}
+            onClick={() => setParams({ module: f.value, page: 1 })}
             className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
               moduleType === f.value
                 ? 'bg-[#1D9E75] text-white border-[#1D9E75]'
@@ -70,6 +101,14 @@ export default function OpportunitiesPage() {
         ))}
       </div>
 
+      {/* Share URL hint */}
+      {(q || moduleType) && (
+        <p className="text-xs text-gray-400">
+          🔗 This search is shareable — copy the URL to share these results.
+        </p>
+      )}
+
+      {/* Results */}
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[...Array(4)].map((_, i) => <SkeletonCard key={i} />)}
@@ -78,7 +117,7 @@ export default function OpportunitiesPage() {
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
           <EmptyState
             title="No opportunities found"
-            description="Try adjusting your search or filter, or check back later."
+            description="Try adjusting your search or filter."
           />
         </div>
       ) : (
@@ -97,7 +136,7 @@ export default function OpportunitiesPage() {
             <div className="flex justify-center gap-2 pt-2">
               <button
                 disabled={page === 1}
-                onClick={() => setPage((p) => p - 1)}
+                onClick={() => setParams({ page: page - 1 })}
                 className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50"
               >
                 ← Prev
@@ -105,7 +144,7 @@ export default function OpportunitiesPage() {
               <span className="px-3 py-1.5 text-sm text-gray-500">{page} / {data.totalPages}</span>
               <button
                 disabled={page === data.totalPages}
-                onClick={() => setPage((p) => p + 1)}
+                onClick={() => setParams({ page: page + 1 })}
                 className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50"
               >
                 Next →

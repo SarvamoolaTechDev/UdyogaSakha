@@ -1,10 +1,14 @@
 'use client';
 
-import { useAnalyticsOverview, useTrustDistribution, useOpportunitiesByModule, useWeeklyActivity, useGovernanceHealth } from '@/hooks/useAnalytics';
+import {
+  useAnalyticsOverview, useTrustDistribution,
+  useOpportunitiesByModule, useWeeklyActivity, useGovernanceHealth,
+} from '@/hooks/useAnalytics';
 import { moduleTypeLabel } from '@/lib/utils';
+import { exportToCsv, flattenForCsv } from '@/lib/export';
 
 function StatCard({ label, value, sub, color = 'text-gray-800' }: {
-  label: string; value: string | number; sub?: string; color?: string;
+  label: string; value: string | number | undefined; sub?: string; color?: string;
 }) {
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
@@ -15,8 +19,9 @@ function StatCard({ label, value, sub, color = 'text-gray-800' }: {
   );
 }
 
-// Minimal bar-chart using pure CSS
-function BarChart({ data, valueKey, labelKey }: { data: any[]; valueKey: string; labelKey: string }) {
+function BarChart({ data, valueKey, labelKey }: {
+  data: any[]; valueKey: string; labelKey: string;
+}) {
   if (!data?.length) return <p className="text-sm text-gray-400 py-4 text-center">No data.</p>;
   const max = Math.max(...data.map((d) => d[valueKey]));
   return (
@@ -43,8 +48,12 @@ function WeeklyChart({ data }: { data: any[] }) {
   return (
     <div className="space-y-3">
       <div className="flex gap-4 text-xs">
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-[#1D9E75] inline-block" /> New Users</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-[#185FA5] inline-block" /> New Opportunities</span>
+        <span className="flex items-center gap-1">
+          <span className="w-3 h-3 rounded-sm bg-[#1D9E75] inline-block" /> New Users
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-3 h-3 rounded-sm bg-[#185FA5] inline-block" /> New Opportunities
+        </span>
       </div>
       <div className="flex items-end gap-1 h-24">
         {data.slice(-12).map((d) => (
@@ -59,7 +68,7 @@ function WeeklyChart({ data }: { data: any[] }) {
                 style={{ height: maxVal ? `${(d.newOpportunities / maxVal) * 80}px` : '2px' }}
               />
             </div>
-            <span className="text-[9px] text-gray-400 rotate-45 origin-left">{d.week.slice(5)}</span>
+            <span className="text-[9px] text-gray-400">{d.week?.slice(5)}</span>
           </div>
         ))}
       </div>
@@ -67,48 +76,92 @@ function WeeklyChart({ data }: { data: any[] }) {
   );
 }
 
+const TRUST_LABELS: Record<string, string> = {
+  L0_REGISTERED: 'L0 Registered', L1_DOCUMENT_VERIFIED: 'L1 Verified',
+  L2_FOUNDATION_SCREENED: 'L2 Screened', L3_DOMAIN_EXPERT_CERTIFIED: 'L3 Certified',
+  L4_COMMUNITY_ENDORSED: 'L4 Endorsed',
+};
+
 export default function AnalyticsPage() {
-  const { data: overview } = useAnalyticsOverview();
+  const { data: overview }  = useAnalyticsOverview();
   const { data: trustDist } = useTrustDistribution();
-  const { data: byModule } = useOpportunitiesByModule();
-  const { data: weekly } = useWeeklyActivity();
+  const { data: byModule }  = useOpportunitiesByModule();
+  const { data: weekly }    = useWeeklyActivity();
   const { data: govHealth } = useGovernanceHealth();
 
-  const trustLabels: Record<string, string> = {
-    L0_REGISTERED: 'L0 Registered', L1_DOCUMENT_VERIFIED: 'L1 Verified',
-    L2_FOUNDATION_SCREENED: 'L2 Screened', L3_DOMAIN_EXPERT_CERTIFIED: 'L3 Certified',
-    L4_COMMUNITY_ENDORSED: 'L4 Endorsed',
+  const handleExportOverview = () => {
+    if (!overview) return;
+    exportToCsv('udyogasakha_overview', [flattenForCsv(overview)]);
+  };
+
+  const handleExportTrust = () => {
+    if (!trustDist?.length) return;
+    exportToCsv('trust_distribution', trustDist.map((d: any) => ({
+      level: d.level,
+      label: TRUST_LABELS[d.level] ?? d.level,
+      count: d.count,
+    })));
+  };
+
+  const handleExportModules = () => {
+    if (!byModule?.length) return;
+    exportToCsv('opportunities_by_module', byModule.map((d: any) => ({
+      moduleType: d.moduleType,
+      label: moduleTypeLabel(d.moduleType),
+      count: d.count,
+    })));
+  };
+
+  const handleExportWeekly = () => {
+    if (!weekly?.length) return;
+    exportToCsv('weekly_activity', weekly);
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-gray-900">Analytics Overview</h1>
-        <span className="text-xs text-gray-400">Refreshes every 60s</span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-400">Refreshes every 60s</span>
+          <button
+            onClick={handleExportOverview}
+            disabled={!overview}
+            className="px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40"
+          >
+            Export overview CSV
+          </button>
+        </div>
       </div>
 
       {/* Platform stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total Users" value={overview?.users?.total ?? '—'} sub={`${overview?.users?.active ?? 0} active`} />
-        <StatCard label="Opportunities" value={overview?.opportunities?.published ?? '—'} sub="published" color="text-teal-700" />
-        <StatCard label="Engagements" value={overview?.engagements?.total ?? '—'} sub={`${overview?.engagements?.completed ?? 0} completed`} />
-        <StatCard label="Pending Moderation" value={overview?.opportunities?.pendingModeration ?? '—'} color={overview?.opportunities?.pendingModeration > 0 ? 'text-amber-600' : 'text-gray-800'} />
+        <StatCard label="Total Users"          value={overview?.users?.total}                      sub={`${overview?.users?.active ?? 0} active`} />
+        <StatCard label="Published Opps"       value={overview?.opportunities?.published}          color="text-teal-700" />
+        <StatCard label="Engagements"          value={overview?.engagements?.total}               sub={`${overview?.engagements?.completed ?? 0} completed`} />
+        <StatCard label="Pending Moderation"   value={overview?.opportunities?.pendingModeration}
+          color={(overview?.opportunities?.pendingModeration ?? 0) > 0 ? 'text-amber-600' : 'text-gray-800'} />
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Pending Verifications" value={overview?.users?.pendingVerification ?? '—'} color="text-blue-700" />
-        <StatCard label="Open Reports" value={overview?.moderation?.openReports ?? '—'} color={overview?.moderation?.openReports > 0 ? 'text-red-600' : 'text-gray-800'} />
-        <StatCard label="Governance Members" value={govHealth?.activeMembers ?? '—'} />
-        <StatCard label="Enforcement (30d)" value={govHealth?.recentEnforcements ?? '—'} />
+        <StatCard label="Pending Verifications" value={overview?.users?.pendingVerification} color="text-blue-700" />
+        <StatCard label="Open Reports"          value={overview?.moderation?.openReports}
+          color={(overview?.moderation?.openReports ?? 0) > 0 ? 'text-red-600' : 'text-gray-800'} />
+        <StatCard label="Active Gov Members"    value={govHealth?.activeMembers} />
+        <StatCard label="Enforcements (30d)"    value={govHealth?.recentEnforcements} />
       </div>
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Trust distribution */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-          <h2 className="font-medium text-gray-700 mb-4">Trust Level Distribution</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-medium text-gray-700">Trust Level Distribution</h2>
+            <button onClick={handleExportTrust} className="text-xs text-gray-400 hover:text-[#185FA5]">
+              CSV ↓
+            </button>
+          </div>
           <BarChart
-            data={(trustDist ?? []).map((d: any) => ({ ...d, label: trustLabels[d.level] ?? d.level }))}
+            data={(trustDist ?? []).map((d: any) => ({ ...d, label: TRUST_LABELS[d.level] ?? d.level }))}
             valueKey="count"
             labelKey="label"
           />
@@ -116,7 +169,12 @@ export default function AnalyticsPage() {
 
         {/* Opportunities by module */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-          <h2 className="font-medium text-gray-700 mb-4">Published by Module</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-medium text-gray-700">Published by Module</h2>
+            <button onClick={handleExportModules} className="text-xs text-gray-400 hover:text-[#185FA5]">
+              CSV ↓
+            </button>
+          </div>
           <BarChart
             data={(byModule ?? []).map((d: any) => ({ ...d, label: moduleTypeLabel(d.moduleType) }))}
             valueKey="count"
@@ -126,7 +184,12 @@ export default function AnalyticsPage() {
 
         {/* Weekly activity */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-          <h2 className="font-medium text-gray-700 mb-4">Weekly Activity (last 12 weeks)</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-medium text-gray-700">Weekly Activity (last 12 weeks)</h2>
+            <button onClick={handleExportWeekly} className="text-xs text-gray-400 hover:text-[#185FA5]">
+              CSV ↓
+            </button>
+          </div>
           <WeeklyChart data={weekly ?? []} />
         </div>
       </div>

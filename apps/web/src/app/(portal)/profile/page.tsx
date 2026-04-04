@@ -3,6 +3,7 @@
 import { useForm } from 'react-hook-form';
 import { useProfile, useUpdateProfile } from '@/hooks/useProfile';
 import { TrustBadgeWidget } from '@/components/ui/TrustBadgeWidget';
+import { DocumentUpload } from '@/components/ui/DocumentUpload';
 
 export default function ProfilePage() {
   const { data: user, isLoading } = useProfile();
@@ -86,6 +87,16 @@ export default function ProfilePage() {
           <h2 className="font-medium text-gray-700 mb-4">Trust Status</h2>
           <TrustBadgeWidget />
         </div>
+      </div>
+
+
+      {/* Document upload for verification */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+        <h2 className="font-medium text-gray-700 mb-1">Verification Documents</h2>
+        <p className="text-sm text-gray-400 mb-4">
+          Upload identity documents to request L1 trust verification.
+        </p>
+        <DocumentUpload />
       </div>
 
       {/* Account info read-only */}

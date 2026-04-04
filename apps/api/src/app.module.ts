@@ -20,6 +20,7 @@ import { QueueModule } from './modules/queue/queue.module';
 import { SearchModule } from './modules/search/search.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { SchedulerModule } from './modules/scheduler/scheduler.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { SchedulerModule } from './modules/scheduler/scheduler.module';
     QueueModule,
     SearchModule,
     AnalyticsModule,
+    DocumentsModule,
 
     // TODO Phase 2: PaymentsModule
   ],
