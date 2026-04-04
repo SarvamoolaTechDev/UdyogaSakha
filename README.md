@@ -243,7 +243,7 @@ All variables are documented in `.env.example`. Key ones:
 
 ## Contributing
 
-This is a commissioned project. Please coordinate with the project lead before raising PRs.
+Please coordinate with the project lead before raising PRs.
 
 Branch strategy:
 - `main` — production-ready code only
